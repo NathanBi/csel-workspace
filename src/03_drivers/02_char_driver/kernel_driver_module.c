@@ -5,9 +5,8 @@
 #include <linux/delay.h> //needed for ssleep function
 #include <linux/interrupt.h> //needed for interrupt
 #include <linux/gpio.h> //needed for io
-// #include <linux/wait.h> // needed wait_queues
 #include <linux/fs.h>
-#include <linux/cdev.h>
+#include <linux/cdev.h> // Needed for cdev struct
 #include <linux/uaccess.h> //needed for copy from/to user
 
 // #define OWNER "Guillaume Blin"
@@ -18,27 +17,33 @@
 
 static char char_buffer[CHAR_BUFFER_SIZE];
 
+// Char device
 static struct cdev driver_cdev;
 
 static dev_t driver_dev;
 
+
+// Opening of device file
 static int driver_open(struct inode* i, struct file* f)
 {
     printk("driver_open: major %d, minor %d\n", imajor(i), iminor(i));
 
-    // Driver open with append intent
+    // Opening with appending intent
     if ((f->f_flags & (O_APPEND)) != 0)
     {
         printk("driver : opened for appending data...\n");
     }
+    // Opening with reading and writing intent
     else if ((f->f_mode & (FMODE_READ | FMODE_WRITE)) != 0) 
     {
         printk("driver : opened for reading & writing...\n");
     } 
+    // Opening with reading intent
     else if ((f->f_mode & FMODE_READ) != 0) 
     {
         printk("driver : opened for reading...\n");
     } 
+    // Opening wiht writing intent
     else if ((f->f_mode & FMODE_WRITE) != 0) 
     {
         printk("driver : opened for writing...\n");
@@ -46,25 +51,30 @@ static int driver_open(struct inode* i, struct file* f)
     return 0;
 }
 
+// Closing of device file
 static int driver_release(struct inode *i, struct file *f)
 {
     printk("driver_release \n");
     return 0;
 }
 
+// Reading contents of device file
 static ssize_t driver_read(struct file* f, char* __user buf, size_t count, loff_t* off)
 {
     // Remaining space in buffer left after write operation
     ssize_t remaining = CHAR_BUFFER_SIZE - (ssize_t)(*off);
+    // Apply offset
     char* buf_ptr = char_buffer + *off;
+
     int cpy_status = 0;
     // Is enough space available for storing further bytes
     if (count >= remaining)
     {
         count = remaining;
     }
+    // Compute new offset
     *off += count;
-
+    // Copy from storage buffer to output buffer
     cpy_status = copy_to_user(buf, buf_ptr, count);
     if (cpy_status != 0)
     {
@@ -75,6 +85,7 @@ static ssize_t driver_read(struct file* f, char* __user buf, size_t count, loff_
     return count;
 }
 
+// Writing contents into device file
 static ssize_t driver_write(struct file* f, const char* __user buf, size_t count, loff_t* off)
 {
     int cpy_status = 0;
@@ -93,9 +104,10 @@ static ssize_t driver_write(struct file* f, const char* __user buf, size_t count
     if (count > 0)
     {
         char* buf_ptr = char_buffer + *off;
+        // Compute new offset
         *off += count;
         buf_ptr[count] = 0; // null terminated
-        
+        // Copy from input buffer to storage buffer
         cpy_status = copy_from_user(buf_ptr, buf, count);
         if(cpy_status)
         {
@@ -105,6 +117,7 @@ static ssize_t driver_write(struct file* f, const char* __user buf, size_t count
     return count;
 }
 
+// File Operations
 static struct file_operations driver_fops = {
     .owner = THIS_MODULE,
     .open = driver_open,
@@ -119,7 +132,10 @@ static int __init kernel_module_init(void)
     // Dynamic allocation of driver numbers to avoid conflicts with other devices
     alloc_chrdev_region(&driver_dev, 0, 1, "driver_module");
 
+    // Char device initialization
     cdev_init(&driver_cdev, &driver_fops);
+
+    // Save driver to kernel
     cdev_add(&driver_cdev, driver_dev, 1);
     printk("Linux char driver kernel module loaded.\n");
 
@@ -129,7 +145,9 @@ static int __init kernel_module_init(void)
 // Execution on rmmod
 static void __exit kernel_module_exit(void)
 {
+    // Removing of driver from kernel
     cdev_del(&driver_cdev);
+    // Free driver numbers
     unregister_chrdev_region(driver_dev, 1);
     printk("Linux char driver kernel module unloaded.\n");
 }
