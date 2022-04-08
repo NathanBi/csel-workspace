@@ -1,0 +1,1 @@
+cmd_/workspace/src/03_drivers/03_char_driver_var_instances/modules.order := {   echo /workspace/src/03_drivers/03_char_driver_var_instances/kernel_driver_module_variable_instances.ko; :; } | awk '!x[$$0]++' - > /workspace/src/03_drivers/03_char_driver_var_instances/modules.order

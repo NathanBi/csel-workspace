@@ -1,0 +1,1 @@
+cmd_/workspace/src/02_modules/08_kernel_module_interrupt/kernel_module_interrupt.mod := { echo  /workspace/src/02_modules/08_kernel_module_interrupt/kernel_module_interrupt.o;  echo; } > /workspace/src/02_modules/08_kernel_module_interrupt/kernel_module_interrupt.mod

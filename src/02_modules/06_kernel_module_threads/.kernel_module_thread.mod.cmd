@@ -1,0 +1,1 @@
+cmd_/workspace/src/02_modules/06_kernel_module_threads/kernel_module_thread.mod := { echo  /workspace/src/02_modules/06_kernel_module_threads/kernel_module_thread.o;  echo; } > /workspace/src/02_modules/06_kernel_module_threads/kernel_module_thread.mod

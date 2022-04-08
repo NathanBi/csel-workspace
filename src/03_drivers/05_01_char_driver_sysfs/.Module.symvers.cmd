@@ -1,0 +1,1 @@
+cmd_/workspace/src/03_drivers/05_char_driver_sysfs/Module.symvers := sed 's/\.ko$$/\.o/' /workspace/src/03_drivers/05_char_driver_sysfs/modules.order | scripts/mod/modpost    -o /workspace/src/03_drivers/05_char_driver_sysfs/Module.symvers -e -i Module.symvers   -T -

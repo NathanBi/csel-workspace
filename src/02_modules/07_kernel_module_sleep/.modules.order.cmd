@@ -1,0 +1,1 @@
+cmd_/workspace/src/02_modules/07_kernel_module_sleep/modules.order := {   echo /workspace/src/02_modules/07_kernel_module_sleep/kernel_module_thread_sleepy.ko; :; } | awk '!x[$$0]++' - > /workspace/src/02_modules/07_kernel_module_sleep/modules.order

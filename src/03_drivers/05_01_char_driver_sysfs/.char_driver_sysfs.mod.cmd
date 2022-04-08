@@ -1,0 +1,1 @@
+cmd_/workspace/src/03_drivers/05_char_driver_sysfs/char_driver_sysfs.mod := { echo  /workspace/src/03_drivers/05_char_driver_sysfs/char_driver_sysfs.o;  echo; } > /workspace/src/03_drivers/05_char_driver_sysfs/char_driver_sysfs.mod
