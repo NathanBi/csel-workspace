@@ -17,7 +17,7 @@
 static int amount_instances;
 module_param(amount_instances, int, 0);
 
-static char* char_buffer[CHAR_BUFFER_SIZE];
+static char** char_buffer;
 
 // Char device
 static struct cdev driver_cdev;
@@ -35,7 +35,7 @@ static int driver_open(struct inode* i, struct file* f)
         printk("driver : opened for appending data...\n");
     }
     // Opening with reading and writing intent
-    else if ((f->f_mode & (FMODE_READ | FMODE_WRITE)) != 0) 
+    if ((f->f_mode & (FMODE_READ | FMODE_WRITE)) != 0) 
     {
         printk("driver : opened for reading & writing...\n");
     } 
@@ -49,6 +49,7 @@ static int driver_open(struct inode* i, struct file* f)
     {
         printk("driver : opened for writing...\n");
     }
+    f->private_data = char_buffer[iminor(i)];
     return 0;
 }
 
@@ -140,11 +141,15 @@ static int __init kernel_module_init(void)
     // Save driver to kernel
     cdev_add(&driver_cdev, driver_dev, amount_instances);
 
-    for(i = 0; i < amount_instances; i++)
+
+    char_buffer = kzalloc(sizeof(char*) * CHAR_BUFFER_SIZE, GFP_KERNEL);
+
+    for(i = 0; i < CHAR_BUFFER_SIZE; i++)
     {
-        char_buffer[i] = kzalloc(sizeof(char*) * CHAR_BUFFER_SIZE, GFP_KERNEL);
-        printk("Instance %d allocated", i);
+        char_buffer[i] = kzalloc(amount_instances, GFP_KERNEL);
     }
+    printk("%d instances allocated\n", amount_instances);
+
     printk("Linux char driver kernel module loaded.\n");
 
     return 0;
@@ -162,6 +167,7 @@ static void __exit kernel_module_exit(void)
     {
         kfree(char_buffer[i]);
     }
+    kfree(char_buffer);
 
     printk("Linux char driver kernel module unloaded.\n");
 }
