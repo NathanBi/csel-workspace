@@ -4,11 +4,15 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-// static const char* simple_string = "1";
+static const char* simple_string = "This is the text for the device!";
 
 
 int main(int argc, char* argv[])
 {
+    int file;
+    char out_buf[100];
+
+    // Cannot execute if no parameters passed
     if(argc <= 1)
     {
         printf("No parameters provided, try again with parameters\n");
@@ -16,37 +20,17 @@ int main(int argc, char* argv[])
     }
 
     printf("Simple application using the drivers\n");
-    printf("argv[1] = %s\n", argv[1]);
-    int file;
-    // if(argc != 0)
-    // {
-    // WRITE
-    // file = open(argv[1], O_RDWR);
-    // write(file, argv[1], strlen(argv[1]));
-    // // write(file, simple_string, strlen(simple_string));
-    //     // fwrite(simple_string, sizeof(simple_string), sizeof(simple_string), file_ptr);
-    // close(file);
 
+    // Write in node file passed as a parameter
     file = open(argv[1], O_WRONLY);
-    printf("file status %d\n", file);
-    write(file, /*simple_string*/ "b", 1);
+    write(file, simple_string, strlen(simple_string));
     close(file);
 
     // READ
     file = open(argv[1], O_RDONLY);
-    while(1)
-    {
-        char out_buf[100];
-        ssize_t size_left = read(file, out_buf, sizeof(out_buf)-1);
-        printf("Read out_buf %s size_left %d\n", out_buf, (int) size_left);
-        if(size_left <= 0)
-        {
-            printf("break\n");
-            break;
-        }
-        out_buf[sizeof(out_buf) - 1] = 0;
-    }
+    read(file, out_buf, strlen(simple_string));
+    printf("Read out_buf %s\n", out_buf);
     close(file);
-        // fclose(file_ptr);
+
     return 0;
 }
