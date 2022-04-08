@@ -35,8 +35,6 @@ static struct device* sysfs_device;
 //Init function
 static int __init skeleton_init(void)
 {
-    int status = 0;
-
     //Create sysfs class
     sysfs_class  = class_create(THIS_MODULE, "my_sysfs_class");
     sysfs_device = device_create(sysfs_class, NULL, 0, NULL, "my_sysfs_device");
