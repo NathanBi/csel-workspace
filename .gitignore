@@ -2,3 +2,8 @@ images
 buildroot-images
 src/*/app
 .obj
+.ko
+.o
+.mod.o
+.mod
+.cmd
