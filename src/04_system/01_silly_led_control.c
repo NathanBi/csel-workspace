@@ -39,6 +39,12 @@
 #define GPIO_UNEXPORT "/sys/class/gpio/unexport"
 #define GPIO_LED      "/sys/class/gpio/gpio10"
 #define LED           "10"
+#define GPIO_K1       "/sys/class/gpio/gpio0"
+#define K1            "0"
+#define GPIO_K2       "/sys/class/gpio/gpio2"
+#define K2            "2"
+#define GPIO_K3       "/sys/class/gpio/gpio3"
+#define K3            "3"
 
 static int open_led()
 {
@@ -62,6 +68,90 @@ static int open_led()
     return f;
 }
 
+static int open_k1()
+{
+    // unexport pin out of sysfs (reinitialization)
+    int f = open(GPIO_UNEXPORT,O_WRONLY);
+    write(f,K1,strlen(K1));
+    close(f);
+
+    // export pin to sysfs
+    f = open(GPIO_EXPORT, O_WRONLY);
+    write(f, K1, strlen(K1));
+    close(f);
+
+    // config pin direction
+    f = open(GPIO_K1 "/direction", O_WRONLY);
+    write(f, "in", 3);
+    close(f);
+
+    // config pin edge
+    f = open(GPIO_K1 "/edge", O_WRONLY);
+    write(f, "falling", 8);
+    close(f);
+
+    // open gpio value attribute
+    f = open(GPIO_K1 "/value", O_RDONLY);
+    return f;
+
+}
+
+static int open_k2()
+{
+    // unexport pin out of sysfs (reinitialization)
+    int f = open(GPIO_UNEXPORT,O_WRONLY);
+    write(f,K2,strlen(K2));
+    close(f);
+
+    // export pin to sysfs
+    f = open(GPIO_EXPORT, O_WRONLY);
+    write(f, K2, strlen(K2));
+    close(f);
+
+    // config pin direction
+    f = open(GPIO_K2 "/direction", O_WRONLY);
+    write(f, "in", 3);
+    close(f);
+
+    // config pin edge
+    f = open(GPIO_K2 "/edge", O_WRONLY);
+    write(f, "falling", 8);
+    close(f);
+
+    // open gpio value attribute
+    f = open(GPIO_K2 "/value", O_RDONLY);
+    return f;
+
+}
+
+static int open_k3()
+{
+    // unexport pin out of sysfs (reinitialization)
+    int f = open(GPIO_UNEXPORT,O_WRONLY);
+    write(f,K3,strlen(K3));
+    close(f);
+
+    // export pin to sysfs
+    f = open(GPIO_EXPORT, O_WRONLY);
+    write(f, K3, strlen(K3));
+    close(f);
+
+    // config pin direction
+    f = open(GPIO_K3 "/direction", O_WRONLY);
+    write(f, "in", 3);
+    close(f);
+
+    // config pin edge
+    f = open(GPIO_K3 "/edge", O_WRONLY);
+    write(f, "falling", 8);
+    close(f);
+
+    // open gpio value attribute
+    f = open(GPIO_K3 "/value", O_RDONLY);
+    return f;
+
+}
+
 int main(int argc, char* argv[])
 {
     long duty   = 2;     // %
@@ -74,7 +164,15 @@ int main(int argc, char* argv[])
     long p2 = period - p1;
 
     int led = open_led();
-    pwrite(led, "1", sizeof("1"), 0);
+    pwrite(led, "0", sizeof("0"), 0);
+
+    char buffer_k1[2];
+    char buffer_k2[2];
+    char buffer_k3[2];
+
+    int k1 = open_k1();
+    int k2 = open_k2();
+    int k3 = open_k3();
 
     struct timespec t1;
     clock_gettime(CLOCK_MONOTONIC, &t1);
@@ -95,7 +193,16 @@ int main(int argc, char* argv[])
                 pwrite(led, "1", sizeof("1"), 0);
             else
                 pwrite(led, "0", sizeof("0"), 0);
+
+            pread(k1,buffer_k1,2,0);
+
+            pread(k2,buffer_k2,2,0);
+
+            pread(k3,buffer_k3,2,0);
+
+            printf("%c %c %c\n",buffer_k1[0],buffer_k2[0],buffer_k3[0]);
         }
+
     }
 
     return 0;
