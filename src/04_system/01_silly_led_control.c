@@ -30,6 +30,7 @@
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/epoll.h>
 
 /*
  * status led - gpioa.10 --> gpio10
@@ -177,9 +178,28 @@ int main(int argc, char* argv[])
     struct timespec t1;
     clock_gettime(CLOCK_MONOTONIC, &t1);
 
+    int epfd = epoll_create1(0);
+
+    struct epoll_event ev[3];
+    struct epoll_event events[3];
+    
+    ev[0].events = EPOLLET;
+    ev[0].data.fd = k1;
+
+    ev[1].events = EPOLLET;
+    ev[1].data.fd = k2;
+
+    ev[2].events = EPOLLET;
+    ev[2].data.fd = k3;
+
+    epoll_ctl(epfd,EPOLL_CTL_ADD,k1,&ev[0]);
+    epoll_ctl(epfd,EPOLL_CTL_ADD,k2,&ev[1]);
+    epoll_ctl(epfd,EPOLL_CTL_ADD,k3,&ev[2]);
+
     int k = 0;
+    int nr = 0;
     while (1) {
-        struct timespec t2;
+        /*struct timespec t2;
         clock_gettime(CLOCK_MONOTONIC, &t2);
 
         long delta =
@@ -201,6 +221,15 @@ int main(int argc, char* argv[])
             pread(k3,buffer_k3,2,0);
 
             printf("%c %c %c\n",buffer_k1[0],buffer_k2[0],buffer_k3[0]);
+        }*/
+
+        nr = epoll_wait(epfd, &events, 3, -1);
+
+        if(nr > 0)
+        {
+            for (int i=0; i<nr; i++) {
+            printf ("event=%ld on fd=%d\n", events[i].events, events[i].data.fd);
+            }
         }
 
     }
