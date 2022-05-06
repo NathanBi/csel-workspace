@@ -35,6 +35,8 @@
 #include <stdio.h>
 #include <stdbool.h>
 
+
+
 /*
  * status led - gpioa.10 --> gpio10
  * power led  - gpiol.10 --> gpio362
@@ -43,6 +45,12 @@
 #define GPIO_UNEXPORT "/sys/class/gpio/unexport"
 #define GPIO_LED      "/sys/class/gpio/gpio10"
 #define LED           "10"
+#define GPIO_K1       "/sys/class/gpio/gpio0"
+#define K1            "0"
+#define GPIO_K2       "/sys/class/gpio/gpio2"
+#define K2            "2"
+#define GPIO_K3       "/sys/class/gpio/gpio3"
+#define K3            "3"
 
 static char *itimerspec_dump(struct itimerspec *ts);
 
@@ -68,14 +76,113 @@ static int open_led()
     return f;
 }
 
+static int open_k1()
+{
+    // unexport pin out of sysfs (reinitialization)
+    int f = open(GPIO_UNEXPORT,O_WRONLY);
+    write(f,K1,strlen(K1));
+    close(f);
+
+    // export pin to sysfs
+    f = open(GPIO_EXPORT, O_WRONLY);
+    write(f, K1, strlen(K1));
+    close(f);
+
+    // config pin direction
+    f = open(GPIO_K1 "/direction", O_WRONLY);
+    write(f, "in", 3);
+    close(f);
+
+    // config pin edge
+    f = open(GPIO_K1 "/edge", O_WRONLY);
+    write(f, "falling", 8);
+    close(f);
+
+    // open gpio value attribute
+    f = open(GPIO_K1 "/value", O_RDONLY);
+    return f;
+
+}
+
+static int open_k2()
+{
+    // unexport pin out of sysfs (reinitialization)
+    int f = open(GPIO_UNEXPORT,O_WRONLY);
+    write(f,K2,strlen(K2));
+    close(f);
+
+    // export pin to sysfs
+    f = open(GPIO_EXPORT, O_WRONLY);
+    write(f, K2, strlen(K2));
+    close(f);
+
+    // config pin direction
+    f = open(GPIO_K2 "/direction", O_WRONLY);
+    write(f, "in", 3);
+    close(f);
+
+    // config pin edge
+    f = open(GPIO_K2 "/edge", O_WRONLY);
+    write(f, "falling", 8);
+    close(f);
+
+    // open gpio value attribute
+    f = open(GPIO_K2 "/value", O_RDONLY);
+    return f;
+
+}
+
+static int open_k3()
+{
+    // unexport pin out of sysfs (reinitialization)
+    int f = open(GPIO_UNEXPORT,O_WRONLY);
+    write(f,K3,strlen(K3));
+    close(f);
+
+    // export pin to sysfs
+    f = open(GPIO_EXPORT, O_WRONLY);
+    write(f, K3, strlen(K3));
+    close(f);
+
+    // config pin direction
+    f = open(GPIO_K3 "/direction", O_WRONLY);
+    write(f, "in", 3);
+    close(f);
+
+    // config pin edge
+    f = open(GPIO_K3 "/edge", O_WRONLY);
+    write(f, "falling", 8);
+    close(f);
+
+    // open gpio value attribute
+    f = open(GPIO_K3 "/value", O_RDONLY);
+    return f;
+
+}
+
 int main(int argc, char* argv[])
 {
     // timer creation
     int timerfd, epfd, ret;
     uint64_t res;
-    struct epoll_event ev;
+    // struct epoll_event ev_tfd;
     struct itimerspec ts;
     int msec = 3000;
+
+    // buttons
+    char buffer_k1[2];
+    char buffer_k2[2];
+    char buffer_k3[2];
+
+    int k1 = open_k1();
+    int k2 = open_k2();
+    int k3 = open_k3();
+
+    int k = 0;
+    int nr = 0;
+
+    struct epoll_event ev[4];
+    struct epoll_event events[4];
 
     timerfd = timerfd_create(CLOCK_REALTIME, 0);
     printf("created timerfd %d\n", timerfd);
@@ -107,9 +214,22 @@ int main(int argc, char* argv[])
 		return EXIT_FAILURE;
 	}
 
+    ev[0].events = EPOLLET;
+    ev[0].data.fd = k1;
+
+    ev[1].events = EPOLLET;
+    ev[1].data.fd = k2;
+
+    ev[2].events = EPOLLET;
+    ev[2].data.fd = k3;
+
+    epoll_ctl(epfd,EPOLL_CTL_ADD,k1,&ev[0]);
+    epoll_ctl(epfd,EPOLL_CTL_ADD,k2,&ev[1]);
+    epoll_ctl(epfd,EPOLL_CTL_ADD,k3,&ev[2]);
+
     //syscall for context control
-    ev.events = EPOLLIN;
-	if (epoll_ctl(epfd, EPOLL_CTL_ADD, timerfd, &ev) == -1) {
+    ev[4].events = EPOLLIN;
+	if (epoll_ctl(epfd, EPOLL_CTL_ADD, timerfd, &ev[3]) == -1) {
 		printf("epoll_ctl(ADD) failed: errno=%d\n", errno);
 		close(epfd);
 		close(timerfd);
@@ -119,8 +239,8 @@ int main(int argc, char* argv[])
 
     while(1)
     {
-        memset(&ev, 0, sizeof(ev));
-	    ret = epoll_wait(epfd, &ev, 1000, 10000); // wait up to 500ms for timer
+        // memset(&events[3], 0, sizeof(ev[3]));
+	    ret = epoll_wait(epfd, &events, 4, 10000); // wait up to 10s for timer
 	    if (ret < 0) {
             printf("epoll_wait() failed: errno=%d\n", errno);
             close(epfd);
@@ -128,7 +248,7 @@ int main(int argc, char* argv[])
             return EXIT_FAILURE;
 	    }
 	    printf("waited on epoll, ret=%d\n", ret);
-        printf("event=%ld on fd=%d\n", ev.events, ev.data.fd);
+        printf("event=%ld on fd=%d\n", ev[3].events, ev[3].data.fd);
 
         ret = read(timerfd, &res, sizeof(res));
         printf("Toggle led \n");
