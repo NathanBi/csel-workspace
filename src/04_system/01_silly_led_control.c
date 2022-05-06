@@ -32,6 +32,7 @@
 #include <unistd.h>
 #include <sys/epoll.h>
 #include <sys/timerfd.h>
+#include <stdio.h>
 
 /*
  * status led - gpioa.10 --> gpio10
@@ -154,24 +155,25 @@ static int open_k3()
 
 }
 
-int main(int argc, char* argv[])
+int main()
 {
+    // LED init
     int led = open_led();
     pwrite(led, "0", sizeof("0"), 0);
 
-    char buffer_k1[2];
-    char buffer_k2[2];
-    char buffer_k3[2];
-
+    // Buttons
     int k1 = open_k1();
     int k2 = open_k2();
     int k3 = open_k3();
 
+    // Context creation
     int epfd = epoll_create1(0);
 
+    // Events
     struct epoll_event ev[4];
     struct epoll_event events[4];
-    
+
+    // Edge triggered
     ev[0].events = EPOLLET;
     ev[0].data.fd = k1;
 
@@ -181,59 +183,74 @@ int main(int argc, char* argv[])
     ev[2].events = EPOLLET;
     ev[2].data.fd = k3;
 
+    // Context control
     epoll_ctl(epfd,EPOLL_CTL_ADD,k1,&ev[0]);
     epoll_ctl(epfd,EPOLL_CTL_ADD,k2,&ev[1]);
     epoll_ctl(epfd,EPOLL_CTL_ADD,k3,&ev[2]);
 
-    struct itimerspec new_value;
-    new_value.it_value.tv_sec = 1;
-    new_value.it_value.tv_nsec = 0;
-    int timer = timerfd_create(CLOCK_MONOTONIC,0);
-    timerfd_settime(timer,0,&new_value,NULL);
+    // Timerfd settings
+    struct itimerspec timer_freq;
+    timer_freq.it_value.tv_sec = 1;
+    timer_freq.it_value.tv_nsec = 0;
 
+    // Timerfd creation
+    int timer = timerfd_create(CLOCK_MONOTONIC,0);
+    
+    // Set time
+    timerfd_settime(timer,0,&timer_freq,NULL);
+
+    // Event triggered or read operation
     ev[3].events = EPOLLET | EPOLLIN;
     ev[3].data.fd = timer;
+    
+    // Control interface
     epoll_ctl(epfd,EPOLL_CTL_ADD,timer,&ev[3]);
 
     int toggle = 1;
     int First = 1;
-    int k = 0;
     int nr = 0;
+
     while (1) {
+        // Wait for event
         nr = epoll_wait(epfd, &events, 4, -1);
 
+        // Determine which event
         if(nr > 0 && !First)
         {
             for (int i=0; i<nr; i++) {
-                printf ("event=%ld on fd=%d\n", events[i].events, events[i].data.fd);
+                printf("event=%d on fd=%d\n", events[i].events, events[i].data.fd);
+                // Button 1 pressed: increase blinking rate
                 if(events[i].data.fd == k1)
                 {
-                    new_value.it_value.tv_nsec += 0;
-                    new_value.it_value.tv_sec += 1;
+                    if(timer_freq.it_value.tv_sec >= 1)
+                        timer_freq.it_value.tv_sec -= 1;
+                    timerfd_settime(timer,0,&timer_freq,NULL);
                 }
+                // Button 2 pressed: default blinking rate
                 else if (events[i].data.fd == k2)
                 {
-                    new_value.it_value.tv_nsec = 0;
-                    new_value.it_value.tv_sec = 1;
+                    timer_freq.it_value.tv_sec = 1;
+                    timerfd_settime(timer,0,&timer_freq,NULL);
                 }
+                // Button 3 pressed: decrease blinking rate
                 else if(events[i].data.fd == k3)
                 {
-                    new_value.it_value.tv_nsec -= 0;
-                    if(new_value.it_value.tv_sec != 1)
-                        new_value.it_value.tv_sec -= 1;
+                    timer_freq.it_value.tv_sec += 1;
+                    timerfd_settime(timer,0,&timer_freq,NULL);
                 }
+                // Timer event --> toggle LED
                 else if(events[i].data.fd == timer)
                 {
                     if (toggle)
                     {
-                         pwrite(led, "1", sizeof("1"), 0);
+                        pwrite(led, "1", sizeof("1"), 0);
                     }
                     else
                     {
                         pwrite(led, "0", sizeof("0"), 0);
                     }
-
-                    timerfd_settime(timer,0,&new_value,NULL);
+                    // Re-arm the timer
+                    timerfd_settime(timer,0,&timer_freq,NULL);
 
                     toggle = !toggle;
                     
