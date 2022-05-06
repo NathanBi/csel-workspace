@@ -31,6 +31,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <sys/epoll.h>
+#include <sys/timerfd.h>
 
 /*
  * status led - gpioa.10 --> gpio10
@@ -155,15 +156,6 @@ static int open_k3()
 
 int main(int argc, char* argv[])
 {
-    long duty   = 2;     // %
-    long period = 1000;  // ms
-    if (argc >= 2) period = atoi(argv[1]);
-    period *= 1000000;  // in ns
-
-    // compute duty period...
-    long p1 = period / 100 * duty;
-    long p2 = period - p1;
-
     int led = open_led();
     pwrite(led, "0", sizeof("0"), 0);
 
@@ -175,13 +167,10 @@ int main(int argc, char* argv[])
     int k2 = open_k2();
     int k3 = open_k3();
 
-    struct timespec t1;
-    clock_gettime(CLOCK_MONOTONIC, &t1);
-
     int epfd = epoll_create1(0);
 
-    struct epoll_event ev[3];
-    struct epoll_event events[3];
+    struct epoll_event ev[4];
+    struct epoll_event events[4];
     
     ev[0].events = EPOLLET;
     ev[0].data.fd = k1;
@@ -196,41 +185,63 @@ int main(int argc, char* argv[])
     epoll_ctl(epfd,EPOLL_CTL_ADD,k2,&ev[1]);
     epoll_ctl(epfd,EPOLL_CTL_ADD,k3,&ev[2]);
 
+    struct itimerspec new_value;
+    new_value.it_value.tv_sec = 1;
+    new_value.it_value.tv_nsec = 0;
+    int timer = timerfd_create(CLOCK_MONOTONIC,0);
+    timerfd_settime(timer,0,&new_value,NULL);
+
+    ev[3].events = EPOLLET | EPOLLIN;
+    ev[3].data.fd = timer;
+    epoll_ctl(epfd,EPOLL_CTL_ADD,timer,&ev[3]);
+
+    int toggle = 1;
+    int First = 1;
     int k = 0;
     int nr = 0;
     while (1) {
-        /*struct timespec t2;
-        clock_gettime(CLOCK_MONOTONIC, &t2);
+        nr = epoll_wait(epfd, &events, 4, -1);
 
-        long delta =
-            (t2.tv_sec - t1.tv_sec) * 1000000000 + (t2.tv_nsec - t1.tv_nsec);
-
-        int toggle = ((k == 0) && (delta >= p1)) | ((k == 1) && (delta >= p2));
-        if (toggle) {
-            t1 = t2;
-            k  = (k + 1) % 2;
-            if (k == 0)
-                pwrite(led, "1", sizeof("1"), 0);
-            else
-                pwrite(led, "0", sizeof("0"), 0);
-
-            pread(k1,buffer_k1,2,0);
-
-            pread(k2,buffer_k2,2,0);
-
-            pread(k3,buffer_k3,2,0);
-
-            printf("%c %c %c\n",buffer_k1[0],buffer_k2[0],buffer_k3[0]);
-        }*/
-
-        nr = epoll_wait(epfd, &events, 3, -1);
-
-        if(nr > 0)
+        if(nr > 0 && !First)
         {
             for (int i=0; i<nr; i++) {
-            printf ("event=%ld on fd=%d\n", events[i].events, events[i].data.fd);
+                printf ("event=%ld on fd=%d\n", events[i].events, events[i].data.fd);
+                if(events[i].data.fd == k1)
+                {
+                    new_value.it_value.tv_nsec += 0;
+                    new_value.it_value.tv_sec += 1;
+                }
+                else if (events[i].data.fd == k2)
+                {
+                    new_value.it_value.tv_nsec = 0;
+                    new_value.it_value.tv_sec = 1;
+                }
+                else if(events[i].data.fd == k3)
+                {
+                    new_value.it_value.tv_nsec -= 0;
+                    if(new_value.it_value.tv_sec != 1)
+                        new_value.it_value.tv_sec -= 1;
+                }
+                else if(events[i].data.fd == timer)
+                {
+                    if (toggle)
+                    {
+                         pwrite(led, "1", sizeof("1"), 0);
+                    }
+                    else
+                    {
+                        pwrite(led, "0", sizeof("0"), 0);
+                    }
+
+                    timerfd_settime(timer,0,&new_value,NULL);
+
+                    toggle = !toggle;
+                    
+                }
             }
         }
+
+        First = 0;
 
     }
 
