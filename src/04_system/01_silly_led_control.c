@@ -33,6 +33,7 @@
 #include <sys/epoll.h>
 #include <sys/timerfd.h>
 #include <stdio.h>
+#include <syslog.h>
 
 /*
  * status led - gpioa.10 --> gpio10
@@ -157,6 +158,9 @@ static int open_k3()
 
 int main()
 {
+    // Init syslog
+    openlog("freq", LOG_PID, LOG_DAEMON);
+
     // LED init
     int led = open_led();
     pwrite(led, "0", sizeof("0"), 0);
@@ -225,18 +229,21 @@ int main()
                     if(timer_freq.it_value.tv_sec >= 1)
                         timer_freq.it_value.tv_sec -= 1;
                     timerfd_settime(timer,0,&timer_freq,NULL);
+                    syslog(LOG_INFO, "increased blinking rate");
                 }
                 // Button 2 pressed: default blinking rate
                 else if (events[i].data.fd == k2)
                 {
                     timer_freq.it_value.tv_sec = 1;
                     timerfd_settime(timer,0,&timer_freq,NULL);
+                    syslog(LOG_INFO, "reset default blinking rate");
                 }
                 // Button 3 pressed: decrease blinking rate
                 else if(events[i].data.fd == k3)
                 {
                     timer_freq.it_value.tv_sec += 1;
                     timerfd_settime(timer,0,&timer_freq,NULL);
+                    syslog(LOG_INFO, "decreased blinking rate");
                 }
                 // Timer event --> toggle LED
                 else if(events[i].data.fd == timer)
@@ -253,7 +260,6 @@ int main()
                     timerfd_settime(timer,0,&timer_freq,NULL);
 
                     toggle = !toggle;
-                    
                 }
             }
         }
