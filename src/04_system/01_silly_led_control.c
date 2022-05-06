@@ -30,6 +30,8 @@
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/epoll.h>
+#include <sys/timerfd.h>
 
 /*
  * status led - gpioa.10 --> gpio10
@@ -39,6 +41,12 @@
 #define GPIO_UNEXPORT "/sys/class/gpio/unexport"
 #define GPIO_LED      "/sys/class/gpio/gpio10"
 #define LED           "10"
+#define GPIO_K1       "/sys/class/gpio/gpio0"
+#define K1            "0"
+#define GPIO_K2       "/sys/class/gpio/gpio2"
+#define K2            "2"
+#define GPIO_K3       "/sys/class/gpio/gpio3"
+#define K3            "3"
 
 static int open_led()
 {
@@ -62,40 +70,179 @@ static int open_led()
     return f;
 }
 
+static int open_k1()
+{
+    // unexport pin out of sysfs (reinitialization)
+    int f = open(GPIO_UNEXPORT,O_WRONLY);
+    write(f,K1,strlen(K1));
+    close(f);
+
+    // export pin to sysfs
+    f = open(GPIO_EXPORT, O_WRONLY);
+    write(f, K1, strlen(K1));
+    close(f);
+
+    // config pin direction
+    f = open(GPIO_K1 "/direction", O_WRONLY);
+    write(f, "in", 3);
+    close(f);
+
+    // config pin edge
+    f = open(GPIO_K1 "/edge", O_WRONLY);
+    write(f, "falling", 8);
+    close(f);
+
+    // open gpio value attribute
+    f = open(GPIO_K1 "/value", O_RDONLY);
+    return f;
+
+}
+
+static int open_k2()
+{
+    // unexport pin out of sysfs (reinitialization)
+    int f = open(GPIO_UNEXPORT,O_WRONLY);
+    write(f,K2,strlen(K2));
+    close(f);
+
+    // export pin to sysfs
+    f = open(GPIO_EXPORT, O_WRONLY);
+    write(f, K2, strlen(K2));
+    close(f);
+
+    // config pin direction
+    f = open(GPIO_K2 "/direction", O_WRONLY);
+    write(f, "in", 3);
+    close(f);
+
+    // config pin edge
+    f = open(GPIO_K2 "/edge", O_WRONLY);
+    write(f, "falling", 8);
+    close(f);
+
+    // open gpio value attribute
+    f = open(GPIO_K2 "/value", O_RDONLY);
+    return f;
+
+}
+
+static int open_k3()
+{
+    // unexport pin out of sysfs (reinitialization)
+    int f = open(GPIO_UNEXPORT,O_WRONLY);
+    write(f,K3,strlen(K3));
+    close(f);
+
+    // export pin to sysfs
+    f = open(GPIO_EXPORT, O_WRONLY);
+    write(f, K3, strlen(K3));
+    close(f);
+
+    // config pin direction
+    f = open(GPIO_K3 "/direction", O_WRONLY);
+    write(f, "in", 3);
+    close(f);
+
+    // config pin edge
+    f = open(GPIO_K3 "/edge", O_WRONLY);
+    write(f, "falling", 8);
+    close(f);
+
+    // open gpio value attribute
+    f = open(GPIO_K3 "/value", O_RDONLY);
+    return f;
+
+}
+
 int main(int argc, char* argv[])
 {
-    long duty   = 2;     // %
-    long period = 1000;  // ms
-    if (argc >= 2) period = atoi(argv[1]);
-    period *= 1000000;  // in ns
-
-    // compute duty period...
-    long p1 = period / 100 * duty;
-    long p2 = period - p1;
-
     int led = open_led();
-    pwrite(led, "1", sizeof("1"), 0);
+    pwrite(led, "0", sizeof("0"), 0);
 
-    struct timespec t1;
-    clock_gettime(CLOCK_MONOTONIC, &t1);
+    char buffer_k1[2];
+    char buffer_k2[2];
+    char buffer_k3[2];
 
+    int k1 = open_k1();
+    int k2 = open_k2();
+    int k3 = open_k3();
+
+    int epfd = epoll_create1(0);
+
+    struct epoll_event ev[4];
+    struct epoll_event events[4];
+    
+    ev[0].events = EPOLLET;
+    ev[0].data.fd = k1;
+
+    ev[1].events = EPOLLET;
+    ev[1].data.fd = k2;
+
+    ev[2].events = EPOLLET;
+    ev[2].data.fd = k3;
+
+    epoll_ctl(epfd,EPOLL_CTL_ADD,k1,&ev[0]);
+    epoll_ctl(epfd,EPOLL_CTL_ADD,k2,&ev[1]);
+    epoll_ctl(epfd,EPOLL_CTL_ADD,k3,&ev[2]);
+
+    struct itimerspec new_value;
+    new_value.it_value.tv_sec = 1;
+    new_value.it_value.tv_nsec = 0;
+    int timer = timerfd_create(CLOCK_MONOTONIC,0);
+    timerfd_settime(timer,0,&new_value,NULL);
+
+    ev[3].events = EPOLLET | EPOLLIN;
+    ev[3].data.fd = timer;
+    epoll_ctl(epfd,EPOLL_CTL_ADD,timer,&ev[3]);
+
+    int toggle = 1;
+    int First = 1;
     int k = 0;
+    int nr = 0;
     while (1) {
-        struct timespec t2;
-        clock_gettime(CLOCK_MONOTONIC, &t2);
+        nr = epoll_wait(epfd, &events, 4, -1);
 
-        long delta =
-            (t2.tv_sec - t1.tv_sec) * 1000000000 + (t2.tv_nsec - t1.tv_nsec);
+        if(nr > 0 && !First)
+        {
+            for (int i=0; i<nr; i++) {
+                printf ("event=%ld on fd=%d\n", events[i].events, events[i].data.fd);
+                if(events[i].data.fd == k1)
+                {
+                    new_value.it_value.tv_nsec += 0;
+                    new_value.it_value.tv_sec += 1;
+                }
+                else if (events[i].data.fd == k2)
+                {
+                    new_value.it_value.tv_nsec = 0;
+                    new_value.it_value.tv_sec = 1;
+                }
+                else if(events[i].data.fd == k3)
+                {
+                    new_value.it_value.tv_nsec -= 0;
+                    if(new_value.it_value.tv_sec != 1)
+                        new_value.it_value.tv_sec -= 1;
+                }
+                else if(events[i].data.fd == timer)
+                {
+                    if (toggle)
+                    {
+                         pwrite(led, "1", sizeof("1"), 0);
+                    }
+                    else
+                    {
+                        pwrite(led, "0", sizeof("0"), 0);
+                    }
 
-        int toggle = ((k == 0) && (delta >= p1)) | ((k == 1) && (delta >= p2));
-        if (toggle) {
-            t1 = t2;
-            k  = (k + 1) % 2;
-            if (k == 0)
-                pwrite(led, "1", sizeof("1"), 0);
-            else
-                pwrite(led, "0", sizeof("0"), 0);
+                    timerfd_settime(timer,0,&new_value,NULL);
+
+                    toggle = !toggle;
+                    
+                }
+            }
         }
+
+        First = 0;
+
     }
 
     return 0;
