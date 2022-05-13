@@ -203,7 +203,7 @@ int main()
     // Set time
     timerfd_settime(timer,0,&timer_freq,NULL);
 
-    // Event triggered or read operation
+    // Event triggered / read operation
     ev[3].events = EPOLLET | EPOLLIN;
     ev[3].data.fd = timer;
     
@@ -226,7 +226,7 @@ int main()
                 // Button 1 pressed: increase blinking rate
                 if(events[i].data.fd == k1)
                 {
-                    if(timer_freq.it_value.tv_sec >= 1)
+                    if(timer_freq.it_value.tv_sec > 1)
                         timer_freq.it_value.tv_sec -= 1;
                     timerfd_settime(timer,0,&timer_freq,NULL);
                     syslog(LOG_INFO, "increased blinking rate");
