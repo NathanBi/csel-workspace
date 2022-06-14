@@ -48,7 +48,8 @@
         "ranges": "cpp",
         "sstream": "cpp",
         "stdexcept": "cpp",
-        "streambuf": "cpp"
+        "streambuf": "cpp",
+        "timer.h": "c"
     },
     "C_Cpp.errorSquiggles": "Disabled"
 }

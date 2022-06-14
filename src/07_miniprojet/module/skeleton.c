@@ -12,6 +12,7 @@
 struct skeleton_data {
     int mode;
     int frequency;
+    int temperature;
 };
 
 static struct skeleton_data data;
@@ -25,12 +26,14 @@ void my_timer_callback(struct timer_list *timer)
     int duty = 0;
     static int led = 0;
 
+    thermal_zone_get_temp(zone,&temp);
+
+    temp /= 1000;
+
+    data.temperature = temp;
+
     if(data.mode == 1)
     {
-        thermal_zone_get_temp(zone,&temp);
-
-        temp /= 1000;
-
         if(temp < 35)
         {
             duty = 500;
@@ -58,13 +61,15 @@ void my_timer_callback(struct timer_list *timer)
     led = !led;
 
     mod_timer(&my_timer, jiffies + msecs_to_jiffies(duty));
+
+    data.frequency = duty;
 }
 
 
 //Show function
 ssize_t sysfs_show_data(struct device* dev, struct device_attribute* attr, char* buf)
 {
-    sprintf(buf,"%d %d\n",data.mode, data.frequency);
+    sprintf(buf,"%d %d %d\n",data.mode, data.frequency, data.temperature);
 
     return strlen(buf);
 }
@@ -72,9 +77,9 @@ ssize_t sysfs_show_data(struct device* dev, struct device_attribute* attr, char*
 //Store function
 ssize_t sysfs_store_data(struct device* dev, struct device_attribute* attr,const char* buf,size_t count)
 {
-    int mode_tmp, frequency_tmp;
+    int mode_tmp, frequency_tmp, temperature_tmp;
 
-    sscanf(buf,"%d %d\n", &mode_tmp, &frequency_tmp);
+    sscanf(buf,"%d %d %d\n", &mode_tmp, &frequency_tmp, &temperature_tmp);
 
     if(mode_tmp == 0 || mode_tmp == 1)
     {
@@ -97,7 +102,8 @@ static struct device* sysfs_device;
 static int __init skeleton_init(void)
 {
     data.mode = 1;
-    data.frequency = 2;
+    data.frequency = 500;
+    data.temperature = 0;
 
     zone = thermal_zone_get_zone_by_name("cpu-thermal");
 
