@@ -6,8 +6,8 @@ export PATH := /buildroot/output/host/usr/sbin$\
 
 # Part executed when called from kernel build system
 ifneq ($(KERNELRELEASE),)
-obj-m += mymodule.o ## name of the generated module
-mymodule-objs := skeleton.o ## list of objets needed by that module
+obj-m += thermal_module.o ## name of the generated module
+mymodule-objs := thermal_module.o ## list of objets needed by that module
 CFLAGS_skeleton := -DDEBUG ## to enable printing of debugging messages
 MODPATH  := /rootfs
 # Part executed when called from standard make in the module source directory

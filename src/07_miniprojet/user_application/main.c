@@ -9,46 +9,45 @@
 int main(int argc, char** argv)
 {
 
-    int mode, frequence, temp;
+    int mode, freq;
     int fd;
     char buf[20];
-    char b[10];
 
     if(argc == 3)
     {
         mode = atoi(argv[1]);
-        frequence = atoi(argv[2]);
+        freq = atoi(argv[2]);
 
-        printf("Mode : %d & Frequence : %d\n", mode, frequence);
+        printf("Mode : %d & Frequency : %d\n", mode, freq);
 
-        if(frequence > 0 && (mode == 0 || mode == 1))
+        if(freq > 0 && (mode == 0 || mode == 1))
         {
-            printf("Envoie a l'interface IPC\n");
+            printf("Send to IPC interface\n");
 
             fd = open("/tmp/myfifo", O_WRONLY);
 
             if(fd < 0)
             {
-                printf("Erreur ouverture fifo\n");
+                printf("Error opening FIFO\n");
             }
             else
             {
-                snprintf(buf,20,"%d %d",mode, frequence);
+                snprintf(buf,20,"%d %d",mode, freq);
 
                 write(fd, buf, strlen(buf)+1);
                 close(fd);
 
-                printf("Envoie OK\n");
+                printf("Sent successfully\n");
             }
         }
         else
         {
-            printf("Erreur valeur parametre\n");
+            printf("Error parameter value\n");
         }
     }
     else
     {
-        printf("Erreur nombre parametre\n");
+        printf("Error parameter amount\n");
     }
 
     return 1;

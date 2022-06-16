@@ -53,16 +53,16 @@ void my_timer_callback(struct timer_list *timer)
     }
     else
     {
-        duty = data.frequency;
+        duty = 1000/data.frequency;
     }
 
     gpio_set_value(LED,led);
 
     led = !led;
 
-    mod_timer(&my_timer, jiffies + msecs_to_jiffies(duty));
+    mod_timer(&my_timer, jiffies + msecs_to_jiffies(duty/2));
 
-    data.frequency = duty;
+    data.frequency = 1000/duty;
 }
 
 
@@ -87,7 +87,7 @@ ssize_t sysfs_store_data(struct device* dev, struct device_attribute* attr,const
         data.mode = mode_tmp;
     }
     else
-        printk("Erreur : mode incorrect");
+        printk("Error : incorrect mode");
 
     return count;
 }

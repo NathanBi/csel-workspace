@@ -57,14 +57,10 @@ static int update_oled(int mode, int temp, int freq)
     char line_mode[15];
     char line_temp[15];
     char line_freq[15];
-    char line_empty[15];
 
-    memset(line_empty, 0, strlen(line_empty));
-
-    // ssd1306_clear_display();
-
+    // Generic info
     ssd1306_set_position (0,0);
-    ssd1306_puts("CSEL - Miniprojet");
+    ssd1306_puts("CSEL-Miniprojet");
     ssd1306_set_position (0,1);
     ssd1306_puts("Bischof Blin");
     ssd1306_set_position (0,2);
@@ -84,22 +80,19 @@ static int update_oled(int mode, int temp, int freq)
     else
     {
         memset(line_mode,0,strlen(line_mode));
-        sprintf(line_mode, "Manual mode    ");
+        sprintf(line_mode, "Manual mode   ");
     }
     ssd1306_set_position (0,3);
-    ssd1306_puts(line_empty);
     ssd1306_puts(line_mode);
 
     // Temp
-    sprintf(line_temp, "Temp: %d °C", temp);
+    sprintf(line_temp, "Temp: %d °C   ", temp);
     ssd1306_set_position (0,4);
-    ssd1306_puts(line_empty);
     ssd1306_puts(line_temp);
 
     // Freq
-    sprintf(line_freq, "Freq: %d Hz", freq);
+    sprintf(line_freq, "Freq: %d Hz   ", freq);
     ssd1306_set_position (0,5);
-    ssd1306_puts(line_empty);
     ssd1306_puts(line_freq);
 
     return 0;
@@ -381,15 +374,14 @@ int main(int argc, char* argv[])
 
     // Timerfd creation
     int timer = timerfd_create(CLOCK_MONOTONIC,0);
-    
+
     // Set time
     timerfd_settime(timer,0,&timer_freq,NULL);
 
     // Event triggered / read operation
     ev[4].events = EPOLLET | EPOLLIN;
     ev[4].data.fd = timer;
-    //ev[4].data.ptr = write_sysfs;
-    
+
     // Control interface
     epoll_ctl(epfd,EPOLL_CTL_ADD,timer,&ev[4]);
 
@@ -398,101 +390,116 @@ int main(int argc, char* argv[])
 
     int bFirstBtn = 1;
 
-    int toggle = 1;
+    int mode = 0, freq = 0, temp = 0;
 
-    int mode = 0, frequence = 0, temp = 0;
+    read_sysfs(&mode,&freq,&temp);
 
-    read_sysfs(&mode,&frequence,&temp);
-
-    while (1) 
+    while (1)
     {
-        
         // Wait for event
         nr = epoll_wait(epfd, &events, 4, -1);
 
-        update_oled(mode, temp, frequence);
+        update_oled(mode, temp, freq);
+
+        syslog(LOG_INFO, "event");
 
         // Determine which event
         if(nr > 0 && !bFirstBtn)
         {
             for (int i=0; i<nr; i++) {
-                // Button 1 pressed: increase blinking rate
+                // Button 1 pressed: increase frequency
                 if(events[i].data.fd == k1)
                 {
-                    pwrite(led, "1", sizeof("1"), 0);
                     if(mode == 0)
                     {
-                        syslog(LOG_INFO, "increased blinking rate");
-                        if(frequence < 500 && frequence > 50)
+                        // led button pushed signaling
+                        pwrite(led, "1", sizeof("1"), 0);
+                        syslog(LOG_INFO, "increase frequency button pushed");
+                        // increment if in range
+                        if(freq < 20 && freq >= 2)
                         {
-                            frequence = frequence + 10;
+                            freq += 1;
+                            syslog(LOG_INFO, "frequency increased to %d Hz", freq);
                         }
-                        update_oled(mode, temp, frequence);
-                        write_sysfs(mode,frequence,temp);
+                        else
+                            syslog(LOG_INFO, "Maximum frequency reached %d Hz", freq);
+
+                        update_oled(mode, temp, freq);
+                        // write values in sysfs
+                        write_sysfs(mode,freq,temp);
+                        sleep(.5);
+                        pwrite(led, "0", sizeof("0"), 0);
                     }
-                    sleep(.5);
-                    pwrite(led, "0", sizeof("0"), 0);
                 }
-                // Button 2 pressed: default blinking rate
+                // Button 2 pressed: decrease frequency
                 else if (events[i].data.fd == k2)
                 {
-                    pwrite(led, "1", sizeof("1"), 0);
                     if(mode == 0)
                     {
-                        syslog(LOG_INFO, "decreased blinking rate");
-                        if(frequence <= 500 && frequence > 50)
+                        // led button pushed signaling
+                        pwrite(led, "1", sizeof("1"), 0);
+                        syslog(LOG_INFO, "decrease frequency button pushed");
+                        // decrement if in range
+                        if(freq <= 20 && freq > 2)
                         {
-                            frequence = frequence - 10;
+                            freq -= 1;
+                            syslog(LOG_INFO, "frequency decreased to %d Hz", freq);
                         }
-                        update_oled(mode, temp, frequence);
-                        write_sysfs(mode,frequence,temp);
+                        else
+                            syslog(LOG_INFO, "Minimum frequency reached %d Hz", freq);
+                        update_oled(mode, temp, freq);
+                        // write values in sysfs
+                        write_sysfs(mode,freq,temp);
+                        // turn off signaling led
+                        sleep(.5);
+                        pwrite(led, "0", sizeof("0"), 0);
                     }
-                    sleep(.5);
-                    pwrite(led, "0", sizeof("0"), 0);
                 }
-                // Button 3 pressed: decrease blinking rate
+                // Button 3 pressed: Switch modes
                 else if(events[i].data.fd == k3)
                 {
+                    // led button pushed signaling
                     pwrite(led, "1", sizeof("1"), 0);
-                    if(mode)
-                        syslog(LOG_INFO, "switch to manual mode");
+                    if(mode == 1)
+                        syslog(LOG_INFO, "switches to manual mode");
                     else
-                        syslog(LOG_INFO, "switch to automatic mode");
-
+                        syslog(LOG_INFO, "switches to automatic mode");
+                    // toggle mode
                     mode = !mode;
-                    update_oled(mode, temp, frequence);
-                    write_sysfs(mode,frequence,temp);
+                    update_oled(mode, temp, freq);
+                    // write values in sysfs
+                    write_sysfs(mode,freq,temp);
+                    // turn off signaling led
                     sleep(.5);
                     pwrite(led, "0", sizeof("0"), 0);
                 }
+                // timer expired
                 else if(events[i].data.fd == timer)
                 {
-                    // TODO: read sysfs
-                    read_sysfs(&mode,&frequence,&temp);
+                    // read values in sysfs
+                    read_sysfs(&mode,&freq,&temp);
+                    update_oled(mode, temp, freq);
 
-                    syslog(LOG_INFO, "Current proc temp %d", temp);
-
+                    // reset timer
                     timerfd_settime(timer,0,&timer_freq,NULL);
-
                 }
+                // event in fifo
                 else if(events[i].data.fd == fifo)
                 {
                     read(fifo,buf,20);
                     mode = atoi(buf);
                     memmove(&buf[0], &buf[0 + 1], strlen(buf) - 0);
                     memmove(&buf[0], &buf[0 + 1], strlen(buf) - 0);
-                    frequence = atoi(buf);
+                    freq = atoi(buf);
 
                     syslog(LOG_INFO,"%s",buf);
 
-                    write_sysfs(mode,frequence,temp);
+                    write_sysfs(mode,freq,temp);
                 }
-                
             }
 
         }
-
-        bFirstBtn = 0;
+        bFirstBtn = 0; // first button reinit
     }
 
     close(fifo);
